@@ -40,6 +40,10 @@ tool: request_write_access { path: "~/Documents/dev/other-repo" }
 - 其它工具的审批（bash/write 的提权）仍走官方卡，本插件只认领自己的请求。
 - `danger-full-access` 下这个工具整体不注册进该步（`when` 条件），模型不会看到一个已经无意义的入口。
 
+## 模型看不到目录清单
+
+`dsh-sandbox-policy` 会把部署级的 `additionalWritableRoots` 写进每一步的运行时上下文（`Additional writable directories: [...]`）。那是机器配置，不是模型要做的决定，而且每步重复。本插件在 `system-prompt/assemble` 里把这句删掉：模式与 workspace 保留，目录清单不再出现。
+
 ## 宽容的权限参数
 
 模型经常搞不清自己处在哪个模式，把提权参数写歪。插件在派发前只改写 `sandbox_permissions` / `justification` 两个字段（`bash` / `pwsh` / `write` / `edit`）：

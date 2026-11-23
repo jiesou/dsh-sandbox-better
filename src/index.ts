@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { applyGrants } from './grants'
 import type { GrantHost } from './grants'
+import { stripAdditionalRoots } from './policy-text'
 import { normalizePermissionArgs } from './tolerate'
 
 interface SandboxPolicy {
@@ -16,7 +17,7 @@ interface ToolExecutionLike {
 interface PluginCtx {
   get?: (name: string) => unknown
   effect?: (callback: () => () => void, label?: string) => unknown
-  on?: (event: string, listener: (exec: ToolExecutionLike, next: () => Promise<unknown>) => Promise<unknown>) => void
+  on?: (event: string, listener: (...args: never[]) => unknown) => void
 }
 
 export const name = 'dsh-sandbox-better'
@@ -57,7 +58,19 @@ export function apply(ctx: Context | PluginCtx): void {
     effect: host.effect === undefined ? undefined : host.effect.bind(host),
   }
   applyGrants(services)
-  host.on?.('tools/pre-execute', (exec, next) => {
+  host.on?.('system-prompt/assemble', (async (
+    _assembly: unknown,
+    _context: unknown,
+    next: () => Promise<unknown>,
+  ) => {
+    const result = await next() as { contexts?: Array<{ name: string; text: string }> } | undefined
+    if (!Array.isArray(result?.contexts)) return result
+    for (const context of result.contexts) {
+      if (context.name === 'sandbox:policy') context.text = stripAdditionalRoots(context.text)
+    }
+    return result
+  }) as (...args: never[]) => unknown)
+  host.on?.('tools/pre-execute', ((exec: ToolExecutionLike, next: () => Promise<unknown>) => {
     try {
       const normalized = normalizePermissionArgs(
         exec.name,
@@ -69,7 +82,7 @@ export function apply(ctx: Context | PluginCtx): void {
       // A call that cannot be normalized runs exactly as the model wrote it.
     }
     return next()
-  })
+  }) as (...args: never[]) => unknown)
 }
 
 export default { name, apply, inject }

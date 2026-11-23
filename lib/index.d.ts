@@ -1,15 +1,8 @@
 import { Context } from "@deepseek-ai/cordis";
-interface ToolExecutionLike {
-  readonly name: string;
-  readonly arguments: unknown;
-  readonly agent?: {
-    readonly session: unknown;
-  };
-}
 interface PluginCtx {
   get?: (name: string) => unknown;
   effect?: (callback: () => () => void, label?: string) => unknown;
-  on?: (event: string, listener: (exec: ToolExecutionLike, next: () => Promise<unknown>) => Promise<unknown>) => void;
+  on?: (event: string, listener: (...args: never[]) => unknown) => void;
 }
 declare const name = "dsh-sandbox-better";
 declare const inject: string[];

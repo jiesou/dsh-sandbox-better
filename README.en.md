@@ -40,6 +40,10 @@ tool: request_write_access { path: "~/Documents/dev/other-repo" }
 - Every other approval (bash/write escalation) still uses the stock card; this plugin claims only its own requests.
 - Under `danger-full-access` the tool is not registered into the step at all (`when` condition), so the model never sees a request that no longer means anything.
 
+## The directory list stays out of the prompt
+
+`dsh-sandbox-policy` writes the deployment's `additionalWritableRoots` into every step's runtime context (`Additional writable directories: [...]`). That is machine configuration, not a decision the model makes, and it repeats every step. This plugin removes the clause in `system-prompt/assemble`: the mode and workspace stay, the list does not appear.
+
 ## Tolerant sandbox arguments
 
 Models frequently lose track of their mode and write the permission fields wrong. Before dispatch the plugin rewrites only `sandbox_permissions` / `justification`, for `bash` / `pwsh` / `write` / `edit`:
