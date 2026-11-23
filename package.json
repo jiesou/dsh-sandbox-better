@@ -1,16 +1,17 @@
 {
   "name": "dsh-sandbox-better",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "DSH bundle: the model's request_write_access tool, session directory grants, its approval card, and tolerant sandbox arguments.",
+  "description": "DSH bundle: the model's request_write_access tool, session-scoped writable directories, and tolerant sandbox arguments.",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "dsh",
     "dsh-plugin",
     "sandbox",
-    "permissions",
-    "approval"
+    "permissions"
   ],
   "engines": {
     "dsh": ">=0.2.2-rc.2"
@@ -25,20 +26,12 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./client": "./client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-conversation"
-      ]
     }
   },
   "main": "lib/index.js",
@@ -52,7 +45,6 @@
   },
   "files": [
     "lib",
-    "client.js",
     "src",
     "tests",
     "cordis.patch.yml",
