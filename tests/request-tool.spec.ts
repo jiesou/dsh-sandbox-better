@@ -2,14 +2,14 @@ import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { TOOL_NAME, applyGrants, grantDirectory, listGrants, resolveGrantDir } from '../src/grants'
+import { TOOL_NAME, registerRequestTool, resolveDirectory } from '../src'
 
 interface FakeSession {
   header: { cwd: string }
 }
 
 function sandboxDir(): string {
-  return mkdtempSync(join(tmpdir(), 'dsb-grant-'))
+  return mkdtempSync(join(tmpdir(), 'dsb-request-'))
 }
 
 function fakeHost(mode = 'workspace-write') {
@@ -34,23 +34,23 @@ function fakeHost(mode = 'workspace-write') {
       },
     },
   }
-  applyGrants(host)
+  registerRequestTool(host)
   return { host, registered, options, calls, setOutcome: (next: string) => { outcome = next } }
 }
 
-describe('resolveGrantDir', () => {
+describe('resolveDirectory', () => {
   it('锚定会话工作目录、解析 ~ 与符号链接', () => {
     const root = sandboxDir()
     mkdirSync(join(root, 'sub'))
     const session: FakeSession = { header: { cwd: root } }
-    expect(resolveGrantDir(session, 'sub')).toBe(join(root, 'sub'))
+    expect(resolveDirectory(session, 'sub')).toBe(join(root, 'sub'))
   })
 
   it('拒绝不存在的路径与文件', () => {
     const root = sandboxDir()
     const session: FakeSession = { header: { cwd: root } }
-    expect(() => resolveGrantDir(session, 'missing')).toThrow(/does not exist/u)
-    expect(() => resolveGrantDir(session, '')).toThrow(/directory is required/u)
+    expect(() => resolveDirectory(session, 'missing')).toThrow(/does not exist/u)
+    expect(() => resolveDirectory(session, '')).toThrow(/directory is required/u)
   })
 })
 
@@ -67,22 +67,7 @@ describe('tool visibility', () => {
   })
 })
 
-describe('grants registry', () => {
-  it('授予一次、重复授予幂等、按会话隔离', () => {
-    const { host } = fakeHost()
-    const root = sandboxDir()
-    mkdirSync(join(root, 'a'))
-    const session: FakeSession = { header: { cwd: root } }
-    const other: FakeSession = { header: { cwd: root } }
-    grantDirectory(host, session, 'a')
-    grantDirectory(host, session, 'a')
-    expect(host.sandboxPolicy.registerWritableRoot).toHaveBeenCalledTimes(1)
-    expect(listGrants(session)).toEqual([join(root, 'a')])
-    expect(listGrants(other)).toEqual([])
-  })
-})
-
-describe('sandbox_permission_request tool', () => {
+describe('request_write_access tool', () => {
   const tool = () => {
     const { host, registered, calls, setOutcome } = fakeHost()
     return {
@@ -98,7 +83,7 @@ describe('sandbox_permission_request tool', () => {
     }
   }
 
-  it('授权前先问用户，获批后才登记', async () => {
+  it('授权前先问用户，获批后登记', async () => {
     const { host, calls, definition } = tool()
     const root = sandboxDir()
     mkdirSync(join(root, 'a'))
@@ -108,18 +93,21 @@ describe('sandbox_permission_request tool', () => {
       { agent: { session: { header: { cwd: root } } }, callId: 'call-1', signal: new AbortController().signal },
     )
 
+    expect(calls).toHaveLength(1)
     expect(calls[0]).toMatchObject({
       toolName: TOOL_NAME,
       callId: 'call-1',
-      reason: `Write access to ${join(root, 'a')} for this session.`,
-    })
-    expect(result).toEqual({ path: join(root, 'a') })
-    expect(calls[0]).toMatchObject({
-      displayReason: expect.objectContaining({
-        zh: `允许本会话写入 ${join(root, 'a')}？`,
+      reason: `Allow writes under ${join(root, 'a')} for this session?`,
+      displayReason: {
         en: `Allow writes under ${join(root, 'a')} for this session?`,
-      }),
+        zh: `允许本会话写入 ${join(root, 'a')}？`,
+      },
     })
+    expect(host.sandboxPolicy.registerWritableRoot).toHaveBeenCalledWith(
+      { header: { cwd: root } },
+      join(root, 'a'),
+    )
+    expect(result).toEqual({ path: join(root, 'a') })
   })
 
   it('用户拒绝时不登记', async () => {
@@ -148,7 +136,7 @@ describe('sandbox_permission_request tool', () => {
 
     const withoutApproval = { ...host, approval: undefined }
     const registered = new Map<string, Record<string, unknown>>()
-    applyGrants({
+    registerRequestTool({
       ...withoutApproval,
       tools: {
         register: (tool: Record<string, unknown>) => {
